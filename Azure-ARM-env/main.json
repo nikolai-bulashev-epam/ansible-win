@@ -1,0 +1,118 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "SAName": {
+        "type": "string"
+      },
+      "SASToken": {
+        "type": "string"
+      },
+      "RGName": {
+        "type": "string"
+      },
+      "VMpassword": {
+        "type": "securestring"
+      }
+    },
+    "variables": {
+      "templateBaseUrl": "[concat('https://',parameters('SAName'),'.blob.core.windows.net/',parameters('RGName'),'/')]",
+      "keyVault-settings": {
+        "name": "[concat(parameters('RGName'),'vault')]",
+        "vm01": {
+          "secret": "[parameters('VMpassword')]",
+          "secretName": "vm01password"
+        },
+        "kvids" : "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', parameters('RGName'), '/providers/Microsoft.KeyVault/vaults/', concat(parameters('RGName'),'vault'))]"
+      }
+  
+    },
+    "resources": [
+      {
+        "type": "Microsoft.Resources/deployments",
+        "apiVersion": "2018-05-01",
+        "name": "vmnet",
+        "properties": {
+          "mode": "Incremental",
+          "templateLink": {
+            "uri": "[concat(variables('templateBaseUrl'),'VMnet.json', parameters('SASToken'))]",
+            "contentVersion":"1.0.0.0"
+          },
+          "parametersLink": {
+              "uri":"[concat(variables('templateBaseUrl'),'Parameters.json', parameters('SASToken'))]",
+              "contentVersion":"1.0.0.0"
+          }
+        }
+      },
+      {
+        "type": "Microsoft.Resources/deployments",
+        "apiVersion": "2018-05-01",
+        "name": "sa",
+        "properties": {
+          "mode": "Incremental",
+          "templateLink": {
+            "uri": "[concat(variables('templateBaseUrl'), 'SA.json', parameters('SASToken'))]",
+            "contentVersion": "1.0.0.0"
+          }
+        }
+      },
+      {
+        "type": "Microsoft.Resources/deployments",
+        "apiVersion": "2018-05-01",
+        "name": "kv",
+        "properties": {
+          "mode": "Incremental",
+          "templateLink": {
+            "uri": "[concat(variables('templateBaseUrl'), 'KVault.json', parameters('SASToken'))]",
+            "contentVersion": "1.0.0.0"
+          },
+          "parameters": {
+            "keyVaultName": {"value": "[variables('keyVault-settings').name]"},
+            "objectId": {"value": "8daada0b-d2d0-4d03-b957-764919e5178a"},
+            "keysPermissions": {"value": ["all"]},
+            "secretsPermissions": {"value": ["all"]},
+            "secretName": {"value": "[variables('keyVault-settings').vm01.secretName]"},
+            "secretValue": {"value": "[variables('keyVault-settings').vm01.secret]"}
+          }
+        }
+      },
+      {
+        "type": "Microsoft.Resources/deployments",
+        "apiVersion": "2018-05-01",
+        "name": "VM",
+        "properties": {
+          "mode": "Incremental",
+          "templateLink": {
+            "uri": "[concat(variables('templateBaseUrl'), 'Vmachine.json', parameters('SASToken'))]",
+            "contentVersion": "1.0.0.1"
+          },
+          "parameters": {
+            "VNetSettings" : { "value": "[reference('vmnet').outputs.VMNetOutput.value]" },
+            "adminUsername" : {"value": "[concat('admin-', parameters('RGName'))]"},
+            "adminPassword": { 
+              "reference": {
+                              "keyVault": {
+                                  "id": "[reference('kv').outputs.KVUri.value]"
+                              },
+                              "secretName": "[variables('keyVault-settings').vm01.secretName]"
+                          }
+            },
+            "dnsLabelPrefix": {"value": "[concat(parameters('RGName'),'-machine01')]"},
+            "ModulesUrl": {"value": "[concat(variables('templateBaseUrl'), 'iis.zip', parameters('SASToken'))]"},
+            "IndexFileUrl": {"value": "[concat(variables('templateBaseUrl'), 'iisstart.html', parameters('SASToken'))]"},
+            "ConfigurationFunction": {"value": "iis.ps1\\ContosoWebsite"}
+          },
+          "copy": {
+            "name": "vmcopy",
+            "count": 3
+          }
+        },
+        "dependsOn": [
+          "kv",
+          "vmnet"
+        ]
+      }
+    ]
+    
+}
+  
