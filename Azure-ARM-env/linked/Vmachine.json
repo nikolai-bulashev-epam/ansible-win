@@ -46,15 +46,9 @@
           "description": "Location for all resources."
         }
       },
-      "modulesUrl": {
-        "type": "string"
-      },
-      "IndexFileUrl": {
-        "type": "string"
-      },
-      "configurationFunction": {
-        "type": "string",
-        "defaultValue": ""
+      "virtualMachineCount": {
+        "type": "int",
+        "defaultValue": 3
       }
     },
     "variables": {
@@ -64,10 +58,9 @@
       "subnetName": "[parameters('VNetSettings').subnets[0].name]",
       "subnetPrefix": "[parameters('VNetSettings').subnets[0].addressPrefix]",
       "publicIPAddressName": "[concat(variables('vmName'), 'myPublicIP')]",
-      "vmName": "[concat(resourceGroup().Name,'SimpleWinVM')]",
+      "vmName": "[concat(resourceGroup().Name,'VM')]",
       "virtualNetworkName": "[parameters('VNetSettings').vnetName]",
-      "subnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('subnetName'))]",
-      "vmExtensionName": "dscExtension"
+      "subnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('subnetName'))]"
     },
     "resources": [
       {
@@ -81,18 +74,7 @@
         "kind": "Storage",
         "properties": {}
       },
-      {
-        "type": "Microsoft.Network/publicIPAddresses",
-        "apiVersion": "2018-11-01",
-        "name": "[variables('publicIPAddressName')]",
-        "location": "[parameters('location')]",
-        "properties": {
-          "publicIPAllocationMethod": "Dynamic",
-          "dnsSettings": {
-            "domainNameLabel": "[parameters('dnsLabelPrefix')]"
-          }
-        }
-      },
+
       {
         "type": "Microsoft.Network/virtualNetworks",
         "apiVersion": "2018-11-01",
@@ -116,13 +98,13 @@
       },
       {
         "type": "Microsoft.Network/networkInterfaces",
-        "apiVersion": "2018-11-01",
-        "name": "[variables('nicName')]",
+        "name": "[concat(variables('nicName'), copyIndex(1), '-NIC1')]",
+        "apiVersion": "2016-03-30",
         "location": "[parameters('location')]",
-        "dependsOn": [
-          "[resourceId('Microsoft.Network/publicIPAddresses/', variables('publicIPAddressName'))]",
-          "[resourceId('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
-        ],
+        "copy": {
+          "name": "NICCopy",
+          "count": "[parameters('virtualMachineCount')]"
+        },
         "properties": {
           "ipConfigurations": [
             {
@@ -130,30 +112,38 @@
               "properties": {
                 "privateIPAllocationMethod": "Dynamic",
                 "publicIPAddress": {
-                  "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))]"
+                  "id": "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('publicIPAddressName'), copyIndex(1), '-PIP1'))]"
                 },
                 "subnet": {
                   "id": "[variables('subnetRef')]"
                 }
               }
             }
-          ]
-        }
+          ],
+          "dnsSettings": {
+            "dnsServers": []
+          },
+          "enableIPForwarding": false
+        },
+        "dependsOn": [
+          "[resourceId('Microsoft.Network/publicIPAddresses', concat(variables('publicIPAddressName'), copyIndex(1), '-PIP1'))]",
+          "[resourceId('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
+        ]
       },
       {
         "apiVersion": "2015-05-01-preview",
         "type": "Microsoft.Network/networkSecurityGroups",
-        "name": "NSG8080",
+        "name": "NSG5896",
         "location": "[parameters('location')]",
         "properties": {
           "securityRules": [
             {
-              "name": "Allow_NSG_8080",
+              "name": "Allow_NSG_5896",
               "properties": {
-                "description": "Allow 8080 from outside",
+                "description": "Allow 5896 from outside",
                 "protocol": "Tcp",
                 "sourcePortRange": "*",
-                "destinationPortRange": "8080",
+                "destinationPortRange": "5896",
                 "sourceAddressPrefix": "*",
                 "destinationAddressPrefix": "*",
                 "access": "Allow",
@@ -165,20 +155,43 @@
         }
       },
       {
+        "apiVersion": "2016-03-30",
+        "type": "Microsoft.Network/publicIPAddresses",
+        "name": "[concat(variables('publicIPAddressName'), copyIndex(1), '-PIP1')]",
+        "location": "[parameters('location')]",
+        "copy": {
+          "name": "PIPCopy",
+          "count": "[parameters('virtualMachineCount')]"
+        },
+        "tags": {
+          "displayName": "[concat(variables('vmName'), copyIndex(1), '-PIP1')]"
+        },
+        "properties": {
+          "publicIPAllocationMethod": "Dynamic",
+          "dnsSettings": {
+            "domainNameLabel": "[concat(parameters('dnsLabelPrefix'), copyIndex(1))]"
+          }
+        }
+      },
+      {
         "type": "Microsoft.Compute/virtualMachines",
         "apiVersion": "2018-10-01",
-        "name": "[variables('vmName')]",
+        "name": "[concat(variables('vmName'),copyIndex(1))]",
         "location": "[parameters('location')]",
         "dependsOn": [
           "[resourceId('Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]",
-          "[resourceId('Microsoft.Network/networkInterfaces/', variables('nicName'))]"
+          "[resourceId('Microsoft.Network/networkInterfaces/', concat(variables('nicName'), copyIndex(1), '-NIC1'))]"
         ],
+        "copy": {
+          "name": "VMcopy",
+          "count": "[parameters('virtualMachineCount')]"
+        },
         "properties": {
           "hardwareProfile": {
-            "vmSize": "Standard_A2"
+            "vmSize": "Standard_A1"
           },
           "osProfile": {
-            "computerName": "[variables('vmName')]",
+            "computerName": "[concat(variables('vmName'),'-',copyIndex(1))]",
             "adminUsername": "[parameters('adminUsername')]",
             "adminPassword": "[parameters('adminPassword')]"
           },
@@ -194,7 +207,7 @@
             },
             "dataDisks": [
               {
-                "diskSizeGB": 1023,
+                "diskSizeGB": 40,
                 "lun": 0,
                 "createOption": "Empty"
               }
@@ -203,7 +216,7 @@
           "networkProfile": {
             "networkInterfaces": [
               {
-                "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('nicName'))]"
+                "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('nicName'), copyIndex(1), '-NIC1'))]"
               }
             ]
           },
@@ -214,36 +227,10 @@
             }
           }
         }
-      },
-      {
-        "type": "Microsoft.Compute/virtualMachines/extensions",
-        "name": "[concat(variables('vmName'),'/', variables('vmExtensionName'))]",
-        "apiVersion": "2015-05-01-preview",
-        "location": "[parameters('location')]",
-        "dependsOn": [
-          "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]"
-        ],
-        "properties": {
-          "publisher": "Microsoft.Powershell",
-          "type": "DSC",
-          "typeHandlerVersion": "2.19",
-          "autoUpgradeMinorVersion": true,
-          "settings": {
-            "ModulesUrl": "[parameters('modulesUrl')]",
-            "ConfigurationFunction": "[parameters('configurationFunction')]",
-            "Properties": {
-              "MachineName": "[variables('vmName')]",
-              "indexFileUrl": "[parameters('IndexFileUrl')]"
-            }
-          },
-          "protectedSettings": null
-        }
+        
       }
     ],
     "outputs": {
-      "hostname": {
-        "type": "string",
-        "value": "[reference(variables('publicIPAddressName')).dnsSettings.fqdn]"
-      }
+      
     }
   }

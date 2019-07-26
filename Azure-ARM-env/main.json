@@ -18,7 +18,7 @@
     "variables": {
       "templateBaseUrl": "[concat('https://',parameters('SAName'),'.blob.core.windows.net/',parameters('RGName'),'/')]",
       "keyVault-settings": {
-        "name": "[concat(parameters('RGName'),'vault')]",
+        "name": "[concat('vault',uniquestring(parameters('RGName')))]",
         "vm01": {
           "secret": "[parameters('VMpassword')]",
           "secretName": "vm01password"
@@ -88,6 +88,7 @@
           },
           "parameters": {
             "VNetSettings" : { "value": "[reference('vmnet').outputs.VMNetOutput.value]" },
+            "dnsLabelPrefix": {"value": "[concat(parameters('RGName'),'-machine01')]"},
             "adminUsername" : {"value": "[concat('admin-', parameters('RGName'))]"},
             "adminPassword": { 
               "reference": {
@@ -96,15 +97,7 @@
                               },
                               "secretName": "[variables('keyVault-settings').vm01.secretName]"
                           }
-            },
-            "dnsLabelPrefix": {"value": "[concat(parameters('RGName'),'-machine01')]"},
-            "ModulesUrl": {"value": "[concat(variables('templateBaseUrl'), 'iis.zip', parameters('SASToken'))]"},
-            "IndexFileUrl": {"value": "[concat(variables('templateBaseUrl'), 'iisstart.html', parameters('SASToken'))]"},
-            "ConfigurationFunction": {"value": "iis.ps1\\ContosoWebsite"}
-          },
-          "copy": {
-            "name": "vmcopy",
-            "count": 3
+            }
           }
         },
         "dependsOn": [
