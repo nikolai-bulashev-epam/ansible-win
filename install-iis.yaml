@@ -1,0 +1,4 @@
+---
+- hosts: win_iis
+  roles:
+  - webserver

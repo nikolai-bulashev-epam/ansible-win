@@ -1,0 +1,11 @@
+---
+all:
+  children:
+    win_iis:
+      hosts:
+        40.114.253.237
+      vars:
+        ansible_user: admin-ansible
+        ansible_password: Ufkjgth2020!
+        ansible_connection: winrm
+        ansible_winrm_server_cert_validation: ignore

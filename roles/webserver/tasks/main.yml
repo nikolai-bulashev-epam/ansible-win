@@ -1,0 +1,48 @@
+---
+- name: Install IIS Web-Server with sub features and management tools
+  win_feature:
+    name: Web-Server
+    state: present
+    include_sub_features: yes
+    include_management_tools: yes
+  register: win_feature
+
+- name: Reboot if installing Web-Server feature requires it
+  win_reboot:
+  when: win_feature.reboot_required
+
+- name: Remove Default Web Site
+  win_iis_website:
+    name: "Default Web Site"
+    state: absent
+
+- name: Create folder structure
+  win_file:
+    path: "{{ hello_world_site_dir }}"
+    state: directory
+
+- name: Hello world site
+  win_iis_website:
+    name: hellosite
+    state: started
+    physical_path: "{{ hello_world_site_dir }}"
+
+- name: Remove old version
+  win_file:
+    path: "{{ hello_world_site_dir }}"
+    state: absent
+
+- name: Download file from git
+  win_get_url:
+    url: https://codeload.github.com/Azure-Samples/html-docs-hello-world/zip/master
+    dest: '%TEMP%\web-arch.zip'
+    force: true
+
+- name: Unzip a file from git
+  win_unzip:
+    src: '%TEMP%\web-arch.zip'
+    dest: "{{ iis_root }}"
+  register: unarchived
+
+- name: move folder
+  win_command: "Rename-Item {{ iis_root }}html-docs-hello-world-master {{ hello_world_site_dir }}"

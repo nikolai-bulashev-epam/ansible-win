@@ -1,0 +1,8 @@
+[win]
+40.114.253.237
+
+[win:vars]
+ansible_user=admin-ansible
+ansible_password=Ufkjgth2020!
+ansible_connection=winrm
+ansible_winrm_server_cert_validation=ignore

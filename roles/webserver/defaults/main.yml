@@ -1,0 +1,4 @@
+---
+# defaults file for iis-hello-app
+hello_world_site_dir: 'C:\inetpub\helloworld\'
+iis_root: 'C:\inetpub\'
